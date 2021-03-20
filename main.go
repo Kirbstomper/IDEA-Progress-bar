@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/disintegration/imaging"
 )
 
 func main() {
@@ -48,7 +50,7 @@ func main() {
 					fmt.Fprintf(w, "Unable to create the file for writing. Check your write access privilege", err)
 					return
 				}
-				
+
 				//Copy to the create file locally
 				_, err = io.Copy(out, file) // file not files [i]!
 				if err != nil {
@@ -56,11 +58,12 @@ func main() {
 					return
 				}
 				//TODO resize image to 32x32
-
+				leftimage, err := imaging.Open("Plugin\\icon_l.png")
 				//create flipped image and write to folder as icon_r
-
-
-
+				resizedleft := imaging.Resize(leftimage, 32, 32, imaging.Linear)
+				resizedright := imaging.FlipH(resizedleft)
+				imaging.Save(resizedleft, "Plugin\\icon_l.png")
+				imaging.Save(resizedright, "Plugin\\icon_r.png")
 				//Write the files to a jar
 				writeToJar("plugin.jar")
 				http.ServeFile(w, r, "plugin.jar")
