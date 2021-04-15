@@ -65,32 +65,36 @@ func createJar(w http.ResponseWriter, leftimage image.Image, config string) {
 	defer zipReader.Close()
 	//Loop through files in plugin jar and write to zip writer
 	for _, file := range zipReader.File {
-		f, err := zipWriter.Create(file.Name)
+		f, _ := zipWriter.Create(file.Name)
 		fileReader, err := file.Open()
-		defer fileReader.Close()
-
 		if err != nil {
 			fmt.Println("Error creating file in zip!", err)
 		}
+		defer fileReader.Close()
+
 		io.Copy(f, fileReader)
 	}
 
 	//Create and write the images
 	resizedright := imaging.FlipH(leftimage) //Create flipped image
 
-	leftW, err := zipWriter.Create("icon_l.png")
-	err = imaging.Encode(leftW, leftimage, imaging.PNG)
+	leftW, _ := zipWriter.Create("icon_l.png")
+	err := imaging.Encode(leftW, leftimage, imaging.PNG)
 	if err != nil {
-		fmt.Printf("Error creating images in zip file l image", err)
+		fmt.Println("Error creating images in zip file l image", err)
 	}
 	rightW, err := zipWriter.Create("icon_r.png")
 	imaging.Encode(rightW, resizedright, imaging.PNG)
 	if err != nil {
-		fmt.Printf("Error creating images in zip file r image", err)
+		fmt.Println("Error creating images in zip file r image", err)
 	}
 
 	//Write the config file
 	configR := strings.NewReader(config)
 	configW, err := zipWriter.Create("config.json")
+	if err != nil {
+		fmt.Println("Error creating config.json in zip file", err)
+	}
+
 	io.Copy(configW, configR)
 }
