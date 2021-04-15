@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"fmt"
+	"image"
 	"io"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 )
 
 func main() {
+	fmt.Println("STARTING!")
 
 	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
@@ -56,11 +58,13 @@ func main() {
 
 				resizedleft := imaging.Resize(leftimage, 32, 32, imaging.Linear) //Resize image
 				resizedright := imaging.FlipH(resizedleft)                       //Create flipped image
+
+				imaging.Encode(w, resizedright, imaging.PNG)
 				imaging.Save(resizedleft, "plugin/icon_l.png")
 				imaging.Save(resizedright, "plugin/icon_r.png")
-
-				writeToJar("plugin.jar")
-				http.ServeFile(w, r, "plugin.jar")
+				w.Header().
+				writeToJar("plugin-serve.jar")
+				http.ServeFile(w, r, "plugin-serve.jar")
 			}
 		} else {
 			w.WriteHeader(400)
@@ -70,6 +74,38 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
+//Creates and saves a jar to the filesystem using the provided filename
+func createJar(filename string, leftimage image.Image) {
+	resizedleft := imaging.Resize(leftimage, 32, 32, imaging.Linear) //Resize image
+	resizedright := imaging.FlipH(resizedleft)                       //Create flipped image
+
+	//Create the new furture jarfile onto the system
+	infile, err := os.Open("plugin.jar")
+	outFile, err := os.Create(filename)
+	if err != nil {
+		fmt.Println("Error creating temporary zip file",err)
+	}
+	defer outFile.Close()
+	io.Copy(outFile, infile)
+	r, err := zip.OpenReader("plugin.jar")
+	w := zip.NewWriter(outFile)
+	defer r.Close()
+
+	for _, file :=range r.File{
+		
+	}
+
+	left, err := w.Create("icon_l.png")
+	right, err := w.Create("icon_r.png")
+	if err != nil {
+		fmt.Println("Error creating files in zip",err)
+	}
+
+	imaging.Encode(left, resizedleft, imaging.PNG)
+	imaging.Encode(right, resizedright, imaging.PNG)
+
+}
+
 func writeToJar(filename string) {
 	// Create a buffer to write our archive to.
 	outFile, err := os.Create(filename)
@@ -77,7 +113,7 @@ func writeToJar(filename string) {
 		fmt.Println(err)
 	}
 	defer outFile.Close()
-
+	io.Copy(outFile)
 	// Create a new zip archive.
 	w := zip.NewWriter(outFile)
 
@@ -126,8 +162,4 @@ func writeToJar(filename string) {
 	if errW != nil {
 		log.Fatal(errW)
 	}
-}
-
-func zipInDirectory(iowriter *io.Writer, path string, innerPath string) {
-
 }
