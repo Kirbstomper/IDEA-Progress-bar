@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"log"
 	"net/http"
-	"os"
 
 	"github.com/disintegration/imaging"
 )
@@ -28,44 +26,23 @@ func main() {
 
 			//get the *fileheaders
 			files := formdata.File["image"] // grab the filenames
-			for i, _ := range files {
-				file, err := files[i].Open()
+			file, err := files[0].Open()
 
-				if err != nil {
-					fmt.Fprintln(w, err)
-					return
-				}
-				defer file.Close()
-				out, err := os.Create("plugin/icon_l.png") // Create the file
-
-				if err != nil {
-					fmt.Fprint(w, "Unable to create the file for writing. Check your write access privilege", err)
-					return
-				}
-				defer out.Close()
-
-				//Copy to the create file locally
-				_, err = io.Copy(out, file) // file not files [i]!
-				if err != nil {
-					fmt.Fprintln(w, err)
-					return
-				}
-				leftimage, err := imaging.Open("plugin/icon_l.png")
-
-				if err != nil {
-					fmt.Fprintln(w, "Error opening image received, please enure file type is correct ", err)
-				}
-
-				resizedleft := imaging.Resize(leftimage, 32, 32, imaging.Linear) //Resize image
-				resizedright := imaging.FlipH(resizedleft)                       //Create flipped image
-
-				imaging.Encode(w, resizedright, imaging.PNG)
-				imaging.Save(resizedleft, "plugin/icon_l.png")
-				imaging.Save(resizedright, "plugin/icon_r.png")
-				w.Header().
-				writeToJar("plugin-serve.jar")
-				http.ServeFile(w, r, "plugin-serve.jar")
+			if err != nil {
+				fmt.Fprintln(w, err)
+				return
 			}
+			defer file.Close()
+
+			leftimage, err := imaging.Decode(file)
+			if err != nil {
+				fmt.Fprintln(w, "Error opening image received, please enure file type is correct ", err)
+			}
+
+			resizedleft := imaging.Resize(leftimage, 32, 32, imaging.Linear) //Resize image
+
+			createJar(w, resizedleft)
+
 		} else {
 			w.WriteHeader(400)
 			fmt.Fprintf(w, "%q not allowed on this endpoint", r.Method)
@@ -74,92 +51,39 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-//Creates and saves a jar to the filesystem using the provided filename
-func createJar(filename string, leftimage image.Image) {
-	resizedleft := imaging.Resize(leftimage, 32, 32, imaging.Linear) //Resize image
-	resizedright := imaging.FlipH(resizedleft)                       //Create flipped image
+//Creates and writes a jar to the http response writer to return to user
+func createJar(w http.ResponseWriter, leftimage image.Image) {
 
-	//Create the new furture jarfile onto the system
-	infile, err := os.Open("plugin.jar")
-	outFile, err := os.Create(filename)
-	if err != nil {
-		fmt.Println("Error creating temporary zip file",err)
-	}
-	defer outFile.Close()
-	io.Copy(outFile, infile)
-	r, err := zip.OpenReader("plugin.jar")
-	w := zip.NewWriter(outFile)
-	defer r.Close()
+	w.Header().Set("Content-Disposition", "attachment; filename=custom-loading-bar-plugin.jar")
+	w.Header().Set("Content-Type", "application/java-archive")
 
-	for _, file :=range r.File{
-		
-	}
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
 
-	left, err := w.Create("icon_l.png")
-	right, err := w.Create("icon_r.png")
-	if err != nil {
-		fmt.Println("Error creating files in zip",err)
-	}
+	zipReader, _ := zip.OpenReader("plugin.jar") //Zip reader
+	defer zipReader.Close()
+	//Loop through files in zip reader
+	for _, file := range zipReader.File {
+		f, err := zipWriter.Create(file.Name)
+		fileReader, err := file.Open()
+		defer fileReader.Close()
 
-	imaging.Encode(left, resizedleft, imaging.PNG)
-	imaging.Encode(right, resizedright, imaging.PNG)
-
-}
-
-func writeToJar(filename string) {
-	// Create a buffer to write our archive to.
-	outFile, err := os.Create(filename)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer outFile.Close()
-	io.Copy(outFile)
-	// Create a new zip archive.
-	w := zip.NewWriter(outFile)
-
-	// Add some files to the archive.
-
-	//plugin Base
-	files, _ := os.ReadDir("plugin")
-
-	for _, file := range files {
-		if !file.IsDir() {
-			f, err := w.Create(file.Name())
-			if err != nil {
-				fmt.Println(err)
-			}
-			//Read the file from the fileSystem
-			osFile, err := os.ReadFile("plugin/" + file.Name())
-			if err != nil {
-				fmt.Println("Error Reading File", err)
-			}
-			_, err = f.Write(osFile)
-			if err != nil {
-				log.Fatal("erro writing file", err)
-			}
-		}
-	}
-	//META-INF Folder
-	files, _ = os.ReadDir("plugin/META-INF")
-	for _, file := range files {
-
-		f, err := w.Create("META-INF/" + file.Name())
 		if err != nil {
-			fmt.Println("Error creating", err)
+			fmt.Println("Error creating file in zip!", err)
 		}
-		//Read the file from the fileSystem
-		osFile, err := os.ReadFile("plugin/META-INF/" + file.Name())
-		if err != nil {
-			fmt.Println("Error reading", err)
-		}
-		_, err = f.Write(osFile)
-		if err != nil {
-			log.Fatal("error writing", err)
-		}
+		io.Copy(f, fileReader)
 	}
-	// Make sure to check the error on Close.
-	errW := w.Close()
-	if errW != nil {
-		log.Fatal(errW)
+
+	resizedright := imaging.FlipH(leftimage) //Create flipped image
+
+	leftW, err := zipWriter.Create("icon_l.png")
+	err = imaging.Encode(leftW, leftimage, imaging.PNG)
+	if err != nil {
+		fmt.Printf("Error creating images in zip file l image", err)
+	}
+	rightW, err := zipWriter.Create("icon_r.png")
+	imaging.Encode(rightW, resizedright, imaging.PNG)
+	if err != nil {
+		fmt.Printf("Error creating images in zip file r image", err)
 	}
 }
