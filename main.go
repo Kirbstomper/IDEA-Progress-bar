@@ -6,6 +6,7 @@ import (
 	"image"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/disintegration/imaging"
 )
@@ -24,10 +25,10 @@ func main() {
 
 			formdata := r.MultipartForm // ok, no problem so far, read the Form data
 
+			config := formdata.Value["config"][0]
 			//get the *fileheaders
 			files := formdata.File["image"] // grab the filenames
 			file, err := files[0].Open()
-
 			if err != nil {
 				fmt.Fprintln(w, err)
 				return
@@ -41,7 +42,7 @@ func main() {
 
 			resizedleft := imaging.Resize(leftimage, 32, 32, imaging.Linear) //Resize image
 
-			createJar(w, resizedleft)
+			createJar(w, resizedleft, config) //Create the jar and write to writer
 
 		} else {
 			w.WriteHeader(400)
@@ -52,7 +53,7 @@ func main() {
 }
 
 //Creates and writes a jar to the http response writer to return to user
-func createJar(w http.ResponseWriter, leftimage image.Image) {
+func createJar(w http.ResponseWriter, leftimage image.Image, config string) {
 
 	w.Header().Set("Content-Disposition", "attachment; filename=custom-loading-bar-plugin.jar")
 	w.Header().Set("Content-Type", "application/java-archive")
@@ -62,7 +63,7 @@ func createJar(w http.ResponseWriter, leftimage image.Image) {
 
 	zipReader, _ := zip.OpenReader("plugin.jar") //Zip reader
 	defer zipReader.Close()
-	//Loop through files in zip reader
+	//Loop through files in plugin jar and write to zip writer
 	for _, file := range zipReader.File {
 		f, err := zipWriter.Create(file.Name)
 		fileReader, err := file.Open()
@@ -74,6 +75,7 @@ func createJar(w http.ResponseWriter, leftimage image.Image) {
 		io.Copy(f, fileReader)
 	}
 
+	//Create and write the images
 	resizedright := imaging.FlipH(leftimage) //Create flipped image
 
 	leftW, err := zipWriter.Create("icon_l.png")
@@ -86,4 +88,9 @@ func createJar(w http.ResponseWriter, leftimage image.Image) {
 	if err != nil {
 		fmt.Printf("Error creating images in zip file r image", err)
 	}
+
+	//Write the config file
+	configR := strings.NewReader(config)
+	configW, err := zipWriter.Create("config.json")
+	io.Copy(configW, configR)
 }
