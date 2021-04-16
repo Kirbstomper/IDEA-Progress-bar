@@ -11,7 +11,7 @@ Also thanks to https://github.com/disintegration/imaging for providing an easy t
 
 # Usage when running in docker
 
-Sending a post request to localhost:8080 with a multipart form containing the following pairs in the form (substituting your color values as you wish)
+Sending a post request to localhost:8080/upload with a multipart form containing the following pairs in the form (substituting your color values as you wish)
 
 
 image : your image file you wish to turn into a loading icon
