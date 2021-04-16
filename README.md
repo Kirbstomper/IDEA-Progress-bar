@@ -11,6 +11,10 @@ Also thanks to https://github.com/disintegration/imaging for providing an easy t
 
 # Usage when running in docker
 
+build using `docker build -t progress-bar-app .`
+run using `docker run -it -p 8080:8080 progress-bar-app`
+
+
 Sending a post request to localhost:8080/upload with a multipart form containing the following pairs in the form (substituting your color values as you wish)
 
 
