@@ -20,4 +20,4 @@ Sending a post request to localhost:8080/upload with a multipart form containing
 
 image : your image file you wish to turn into a loading icon
 
-config : {"R":255, "B":0, "G":255 }
+config : {"R":"255", "B":"0", "G":"255" }
